@@ -2,11 +2,14 @@ import pygame
 from pygame.locals import *
 import time
 import random
+import asyncio
 
 # reused values are written so we can easily change in future
 SIZE = 40
 bg_color = (70,255,70)
 res = (1000, 680)
+
+######################  POINTS CLASS  ##############################
 
 class Point:
     def __init__(self, main_screen):
@@ -16,10 +19,12 @@ class Point:
         self.x = SIZE*10
         self.y = SIZE*15
 
+    # To draw the point on the screen
     def draw(self):
         self.main_screen.blit(self.image,(self.x, self.y))
         pygame.display.flip()
 
+    # To change the position of the point (getting new position for point to be displayed)
     def move(self):
         a = random.randint(0, res[0]/SIZE - 1)
         b = random.randint(0, res[1]/SIZE - 1)
@@ -47,11 +52,13 @@ class Snake:
         self.main_screen.blit(bg, (0,0))
         pygame.display.flip()
 
+    # Whenever we get a point
     def increase_length(self):
         self.length += 1
         self.x.append(-1)
         self.y.append(-1)
     
+    # Draw the snake
     def draw(self):
         self.show_background('game_bg.png')
         self.pt.draw()
@@ -59,6 +66,7 @@ class Snake:
             self.main_screen.blit(self.block, (self.x[i], self.y[i]))
         pygame.display.flip()
 
+    # Controls
     def move_up(self):
         self.direction = 'up'
 
@@ -71,6 +79,7 @@ class Snake:
     def move_right(self):
         self.direction = 'right'
 
+    # To walk and change direction
     def walk(self):
 
         for j in range((self.length-1), 0, -1):
@@ -106,7 +115,7 @@ class Game:
         self.snake = Snake(self.surface, 4, self.apple)
 
     # Starting of the game
-    def start(self):
+    async def start(self):
         run = True # To pause or end
         while run:
             self.show_background('start_bg.jpg') # Show the start screen ###
@@ -120,39 +129,52 @@ class Game:
                         
                     # START
                     if event.key == K_SPACE:
-                        self.show_background('game_bg.png') #Changing Background to game
+                        self.show_background('game_bg.png') # Changing Background to game background
                         self.play_bg_music('bg_music_1.mp3', 1) # Start of music. 1 -> Play
                         self.run() # Running of the game
                 
                 # Pressing the cross mark on screen
                 elif (event.type == QUIT):
-                    run = False        
+                    run = False    
 
+            await asyncio.sleep(0)    # IMPORTANT
+
+    # Displaying the Score
     def show_score(self):
         font1 = pygame.font.SysFont('ariel', 30, True, False)
         score = font1.render(f'SCORE: {self.snake.length - 4}', True, (0, 0, 0))
         self.surface.blit(score, (15, 15))
         pygame.display.flip()
 
+    # Core game functions
     def play(self):
-        self.snake.walk()
-        self.apple.draw()
-        self.show_score()
+        self.snake.walk() # Snake Movement
+        self.apple.draw() # Points to be drawn
+        self.show_score() # Displaying the score
 
+        # Checking for collision with point, increase length and reposition point
         if self.collide(self.snake.x[0], self.snake.y[0], self.apple.x, self.apple.y):
-            self.play_sound('point.ogg')
-            self.apple.move()
-            self.snake.increase_length()
+            self.play_sound('point.ogg') # Eating sound
+            self.apple.move() # Reposition point
+            self.snake.increase_length() # Increase snake length
 
+        # Check if snake is out of the playing area
+        if self.out():
+            self.play_sound('gameover.ogg')
+            raise "Game Over"
+
+        # Check collision with body
         for i in range(3, self.snake.length):
             if self.collide(self.snake.x[0], self.snake.y[0], self.snake.x[i], self.snake.y[i]):
                 self.play_sound('gameover.ogg')
                 raise "Game Over"
 
+    # To play any sound
     def play_sound(self, name):
         music = pygame.mixer.Sound(name)
         pygame.mixer.Sound.play(music)
 
+    # Check the collisions
     def collide(self, x1, y1, x2, y2):
         if (x1 >= x2-5 and x1 <= x2+SIZE-5):
             if (y1 >= y2-5 and y1 <= y2+SIZE-5):
@@ -160,12 +182,23 @@ class Game:
 
         return False
 
+    # Check if its in play area
+    def out(self):
+        x = self.snake.x[0]
+        y = self.snake.y[0]
+        if (not -5 < x < res[0]) or (not -5 < y < res[1]):
+            return True
+        else:
+            return False
+
+    # To change background
     def show_background(self, bg_p):
         bg = pygame.image.load(bg_p)
         bg = pygame.transform.scale(bg, res)
         self.surface.blit(bg, (0,0))
         pygame.display.flip()
 
+    # To be run after game over
     def gameover(self):
         self.surface.fill(bg_color)
         font1 = pygame.font.SysFont('ariel', 30,False, False)
@@ -178,6 +211,7 @@ class Game:
         self.surface.blit(line3, (300, 350))
         pygame.display.flip()
 
+    # To restart the game
     def reset(self):
         self.snake.length = 4
         self.snake.x = [SIZE]*self.snake.length
@@ -204,11 +238,13 @@ class Game:
                 if event.type == KEYDOWN:
                     if event.key == K_ESCAPE:
                         running = False
+                        self.play_bg_music('bg_music_1.mp3', 0) # Pause of music. 0 -> Pause
 
                     if event.key == K_RETURN:
                         pause = False
                         self.reset()
 
+                    # Controls of the game
                     if not pause:
                         if event.key == K_UP or event.key == K_w:
                             self.snake.move_up()
@@ -230,6 +266,7 @@ class Game:
                 if not pause:
                     self.play()
             except Exception as e:
+                # Game over exception
                 self.play_bg_music('bg_music_1.mp3', 0)
                 self.gameover()
                 pause = True
@@ -237,4 +274,5 @@ class Game:
 
 if __name__ == "__main__":
     game = Game() # Create the game
-    game.start() # Start the game
+    # game.start() # Start the game
+    asyncio.run(game.start())
